@@ -7,9 +7,10 @@ function htmlspecialchars(str) {
 	str = str.replace(/'/g, '&#039;');
 	return str;
 }
-var ChatRoomClient = function() {
+var ChatRoomClient = function(roomId) {
 	this.users = [];
 	this.nameChanged = false;
+	this.roomId = roomId;
 	this.totalCount = 0;
 	this.startup();
 	this.init();
@@ -19,15 +20,15 @@ var ChatRoomClient = function() {
 ChatRoomClient.prototype.init = function() {
 	this.joinRoom();
 	self = this;
-	var es = new EventSource("/chat/stream/1");
+	var es = new EventSource("/chat/stream/"+self.roomId);
 	es.onmessage = function(event) {
 		console.info("sse=" + event.data);
-		var data = eval("("+event.data+")");
-		if(data.et=='USERADD')
+		var data = eval("(" + event.data + ")");
+		if (data.et == 'USERADD')
 			self.addWelcomeLog(data);
-		else{
-			if(self.userName!=data.pubName)
-				self.addChatLog(data,'group');
+		else {
+			if (self.userName != data.pubName)
+				self.addChatLog(data, 'group');
 		}
 	}
 	/*
@@ -212,10 +213,10 @@ ChatRoomClient.prototype.bindEvent = function() {
 		evt.preventDefault();
 		evt.stopImmediatePropagation();
 		var $this = $(this);
-		var $p = $this.parent('.chatroom-log');
+		var $p = $this.parent('.chatroom-log-info');
 		var avatar = $p.find('.avatar img').attr('src');
-		var name = $p.find('.time b').text();
-		var id = $p.find('.time b').attr('data-id');
+		var name = $p.find('.name b').text();
+		var id = $p.attr('data-id');
 		if (id === self.userId)
 			return;
 		if ($this.parent().hasClass('chatroom-log-welcome')) {
@@ -251,11 +252,6 @@ ChatRoomClient.prototype.bindEvent = function() {
 	if (/Mac OS/i.test(navigator.appVersion)) {
 		$(".chatroom textarea").attr('placeholder', '按 Command+Enter 发送');
 	}
-	/*
-	 * $(window).on('beforeunload close', function() {
-	 * self.socket.emit('forceDisconnect', { id : self.userId });
-	 * self.socket.disconnect(); });
-	 */
 };
 
 ChatRoomClient.prototype.ping = function(data) {
@@ -308,6 +304,7 @@ ChatRoomClient.prototype.checkOnline = function(id) {
 	return true;
 };
 
+//TODO 如何隔离房间跟当前
 ChatRoomClient.prototype.addChatLog = function(data, id, isSelf) {
 	if (!this.checkOnline(id))
 		return;
@@ -316,10 +313,11 @@ ChatRoomClient.prototype.addChatLog = function(data, id, isSelf) {
 	}
 	var logXtpl = [
 			'<div class="chatroom-log' + (isSelf ? ' myself' : '') + '">',
-			'<span class="avatar"><img src="<% avatar %>" alt="'+data.pubName+'"></span>',
+			'<span class="avatar"><img src="<% avatar %>" alt="' + data.pubName
+					+ '"></span>',
 			'<span class="time"><b data-id="<% id %>"><% name %></b> '
 					+ new Date().toLocaleString() + '</span>',
-			'<span class="detail">'+data.content+'</span>', '</div>' ];
+			'<span class="detail">' + data.content + '</span>', '</div>' ];
 	var $log = logXtpl.join('\n').replace(/<%\s*?(\w+)\s*?%>/gm,
 			function($0, $1) {
 				if ($1 === 'avatar' && (!data || !data[$1])) {
@@ -344,8 +342,8 @@ ChatRoomClient.prototype.scroll = function(id, isSelf) {
 }
 
 ChatRoomClient.prototype.addInfoLog = function(data, id) {
-	var $info = '<div class="chatroom-log-info">' + htmlspecialchars(data.content)
-			+ '</div>';
+	var $info = '<div class="chatroom-log-info">'
+			+ htmlspecialchars(data.content) + '</div>';
 	var $target = $(".chatroom-item[data-id='" + htmlspecialchars(id) + "']");
 	if (!id) {
 		$target = $(".chatroom-item.current");
@@ -356,8 +354,7 @@ ChatRoomClient.prototype.addInfoLog = function(data, id) {
 
 ChatRoomClient.prototype.addWelcomeLog = function(data) {
 	var $info = '<div class="chatroom-log-info chatroom-log-welcome" data-id="'
-			+ htmlspecialchars(data.pubName) + '">欢迎 <img class="avatar" src="'
-			+ htmlspecialchars(data.pubName) + '"><strong class="name">'
+			+ htmlspecialchars(data.pubName) + '">欢迎 <img class="avatar" src="#"><strong class="name">'
 			+ htmlspecialchars(data.pubName) + '</strong>加入群聊！</div>';
 	var $target = $(".chatroom-item[data-id='group']");
 	$target.append($info);
@@ -388,5 +385,5 @@ ChatRoomClient.prototype.updateCount = function(id) {
 };
 
 (function() {
-	window.chatRoomClient = new ChatRoomClient();
+	window.chatRoomClient = new ChatRoomClient(1);
 }())
